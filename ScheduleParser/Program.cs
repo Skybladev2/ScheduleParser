@@ -3,29 +3,25 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Net;
 using System.Text;
 
-namespace ScheduleParser
-{
-    class Program
-    {
-        static void Main(string[] args)
-        {
+namespace ScheduleParser {
+    class Program {
+        static void Main(string[] args) {
             HtmlDocument html = GetHtmlDoc();
-            var table = html.DocumentNode.SelectSingleNode("//table[@class='session']/tbody");
+            var table = html.DocumentNode.SelectSingleNode("//table[@class='session']");
             List<SessionInfo> sessions = new List<SessionInfo>();
             List<string> movieNames = new List<string>();
 
-            foreach (var tr in table.ChildNodes)
-            {
+            foreach(var tr in table.ChildNodes) {
                 string text = tr.InnerHtml;
-                if (String.IsNullOrWhiteSpace(text))
+                if(String.IsNullOrWhiteSpace(text))
                     continue;
 
                 SessionInfo commonSession = new SessionInfo();
                 string movieName = tr.SelectSingleNode("td[@class='session-col-1']").InnerText;
-                if (movieName.EndsWith("(3D)"))
-                {
+                if(movieName.EndsWith("(3D)")) {
                     movieName = movieName.Substring(0, movieName.Length - 5);
                     commonSession.Is3D = true;
                 }
@@ -37,9 +33,8 @@ namespace ScheduleParser
                 commonSession.PlaceName = CorrectPlaceName(placeName);
 
                 var timesList = tr.SelectSingleNode("td[@class='session-col-4']/ul");
-                foreach (var time in timesList.ChildNodes)
-                {
-                    if (String.IsNullOrWhiteSpace(time.InnerText))
+                foreach(var time in timesList.ChildNodes) {
+                    if(String.IsNullOrWhiteSpace(time.InnerText))
                         continue;
 
                     string[] timeParts = time.InnerText.Split(':');
@@ -56,32 +51,27 @@ namespace ScheduleParser
             Console.ReadKey();
         }
 
-        private static void PrintSessions(List<SessionInfo> sessions, List<string> movieNames)
-        {
-            foreach (var movieName in movieNames)
-            {
+        private static void PrintSessions(List<SessionInfo> sessions, List<string> movieNames) {
+            foreach(var movieName in movieNames) {
                 var movieSessions = sessions.Where(s => s.MovieName == movieName).OrderBy(s => s.Time).GroupBy(s => s.Time).Select(group => new { Time = group.Key, Places = group.ToList() });
 
                 Console.WriteLine("*{0}*", movieName);
                 File.AppendAllText(@"D:\1.csv", String.Format("*{0}*", movieName) + Environment.NewLine);
 
-                foreach (var session in movieSessions)
-                {
+                foreach(var session in movieSessions) {
                     Console.WriteLine("{0}\t{1}", session.Time.ToString("HH:mm"), GetPlacesString(session.Places));
                     File.AppendAllText(@"D:\1.csv", String.Format("{0};{1}", session.Time.ToString("HH:mm"), GetPlacesString(session.Places)) + Environment.NewLine);
                 }
             }
         }
 
-        private static string GetPlacesString(List<SessionInfo> sessions)
-        {
+        private static string GetPlacesString(List<SessionInfo> sessions) {
             StringBuilder sb = new StringBuilder();
 
-            foreach (var session in sessions.OrderBy(s => s.PlaceName))
-            {
+            foreach(var session in sessions.OrderBy(s => s.PlaceName)) {
                 sb.Append(session.PlaceName);
 
-                if (session.Is3D)
+                if(session.Is3D)
                     sb.Append("(3D)");
 
                 sb.Append(", ");
@@ -90,18 +80,15 @@ namespace ScheduleParser
             return sb.ToString().Substring(0, sb.Length - 2);
         }
 
-        private static void AddMovieName(List<string> movieNames, string movieName)
-        {
-            if (movieNames.Contains(movieName))
+        private static void AddMovieName(List<string> movieNames, string movieName) {
+            if(movieNames.Contains(movieName))
                 return;
 
             movieNames.Add(movieName);
         }
 
-        private static string CorrectPlaceName(string placeName)
-        {
-            switch (placeName)
-            {
+        private static string CorrectPlaceName(string placeName) {
+            switch(placeName) {
                 case "Синема Стар":
                     return "21 век";
                 case "Синема Стар Рио":
@@ -111,11 +98,14 @@ namespace ScheduleParser
             }
         }
 
-        private static HtmlDocument GetHtmlDoc()
-        {
-            string text = File.ReadAllText(@"D:\1.html", Encoding.UTF8);
+        private static HtmlDocument GetHtmlDoc() {
+            WebRequest request = WebRequest.Create("http://kaluga.ru/bill");
+            WebResponse response = request.GetResponse();
+
             HtmlDocument html = new HtmlDocument();
+            string text = new StreamReader(response.GetResponseStream(), Encoding.GetEncoding(1251)).ReadToEnd();
             html.LoadHtml(text);
+            response.Close();
             return html;
         }
     }
